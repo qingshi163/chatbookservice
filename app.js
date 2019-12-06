@@ -1,8 +1,13 @@
 const Koa = require('koa2');
 const bodyParser = require('koa-bodyparser');
 const Router = require('koa-router');
-const sesseon = require('koa-session');
+const session = require('koa-session');
+const logger = require('koa-logger');
 const app = new Koa();
+const SESSION_CONFIG = {
+    key: 'chatbook',
+    maxAge: 86400000,
+}
 const PORT = 3000;
 const API_V1 = ''//'/api/v1'
 const router_v1 = new Router({ prefix: API_V1 });
@@ -34,17 +39,26 @@ const login_html = `
 </html>`
 
 router_v1
+    .get('/', (ctx, next) => {
+        ctx.body = {API: API_V1};
+    })
     .get('/auth/login', (ctx, next) => {
         ctx.body = login_html;
     })
     .get('/auth/status', isAuthenticated, (ctx, next) => {
-        ctx.body = ctx.state.user;
+        ctx.body = {
+            status: 'success',
+            uid: ctx.state.user.uid,
+            username: ctx.state.user.username,
+            created: ctx.state.user.created,
+            changed: ctx.state.user.changed,
+        }
     })
     .post('/auth/login', (ctx, next) => {
         return passport.authenticate('local', (err, user, info, status) => {
             if (user) {
                 ctx.login(user);
-                ctx.redirect(API_V1+'/auth/status');
+                ctx.body = { status: 'success' };
                 console.log('LOGIN: Success: ' + user.username);
             } else {
                 ctx.status = 400;
@@ -57,12 +71,16 @@ router_v1
             ctx.logout();
         }
         ctx.body = { status: 'success' };
-        ctx.status = 200;
     })
+    .get('/group/list/:gid', isAuthenticated, (ctx, next) => {
+        console.log(ctx.params.gid);
+        ctx.body = { status: 'success' };
+    });
 
 app
+    .use(logger())
     .use(bodyParser())
-    .use(sesseon(app))
+    .use(session(SESSION_CONFIG, app))
     .use(passport.initialize())
     .use(passport.session())
     .use(router_v1.routes())
